@@ -1,0 +1,50 @@
+name: Build mod jar
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Unzip the project
+        run: |
+          shopt -s nullglob
+          for f in *.zip; do unzip -o "$f"; done
+          echo "--- repo contents ---"
+          find . -maxdepth 3 -not -path './.git*' | sort | head -100
+
+      - name: Find the project folder
+        id: proj
+        run: |
+          B=$(grep -rl "net.minecraftforge.gradle" --include=build.gradle . | head -n1)
+          if [ -z "$B" ]; then
+            echo "No Forge build.gradle found anywhere in the repo"
+            exit 1
+          fi
+          echo "Found project at: $(dirname "$B")"
+          echo "dir=$(dirname "$B")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.1.1
+
+      - name: Build
+        run: gradle build -p "${{ steps.proj.outputs.dir }}"
+
+      - name: Save the jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: orespawn-revival-jar
+          path: ${{ steps.proj.outputs.dir }}/build/libs/*.jar
